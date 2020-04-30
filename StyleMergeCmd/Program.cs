@@ -1,4 +1,7 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text.RegularExpressions;
 using CommandLine;
 using StyleMerge;
 
@@ -25,9 +28,49 @@ namespace StyleMergeCmd
 
 		private static void RunOptionsAndReturnExitCode(Options opts)
 		{
-			var sourceHtml = System.IO.File.ReadAllText(opts.InputFile);
+			var inputFile = opts.InputFile;
+			var sourceHtml = GetDocument(inputFile);
 			var processedHtml = Inliner.ProcessHtml(sourceHtml);
+
 			System.IO.File.WriteAllText(opts.OutputFile, processedHtml);
+		}
+
+		private static string GetDocument(string inputFile)
+		{
+			var sourceHtml = System.IO.File.ReadAllText(inputFile);
+			var dir = System.IO.Path.GetDirectoryName(inputFile);
+
+			sourceHtml = EmbedLinkedCss(sourceHtml, dir);
+
+			return sourceHtml;
+		}
+
+		private static string EmbedLinkedCss(string sourceHtml, string dir)
+		{
+			const string pattern = @"<link(?: (rel|type|href|media)=""(.*?)"")+ */?>";
+			var regex = new Regex(pattern, RegexOptions.Compiled);
+			var matches = regex.Matches(sourceHtml);
+			foreach (var m in matches.Cast<Match>()) {
+				var fullMatch = m.Value;
+
+				int hrefIdx;
+				var captureAttrNames = m.Groups[1].Captures;
+				for (hrefIdx = 0; hrefIdx < captureAttrNames.Count; ++hrefIdx) {
+					var attr = captureAttrNames[hrefIdx].Value;
+					if (attr == "href")
+						break;
+				}
+
+				var hrefValue = m.Groups[2].Captures[hrefIdx].Value;
+				if (!System.IO.Path.IsPathRooted(hrefValue)) {
+					hrefValue = System.IO.Path.Combine(dir, hrefValue);
+				}
+
+				var cssFileSource = System.IO.File.ReadAllText(hrefValue);
+				sourceHtml = sourceHtml.Replace(fullMatch, $"<style>{cssFileSource}</style>");
+			}
+
+			return sourceHtml;
 		}
 
 		private static void HandleParseError(IEnumerable<Error> errs)
