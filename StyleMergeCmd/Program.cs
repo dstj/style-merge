@@ -14,7 +14,7 @@ namespace StyleMergeCmd
 			[Option('i', "in", Required = true, HelpText = "Input file")]
 			public string InputFile { get; set; }
 
-			[Option('o', "out", Required = true, HelpText = "Output file")]
+			[Option('o', "out", Required = false, HelpText = "Output file (when missing, '.inline' is added to input file)")]
 			public string OutputFile { get; set; }
 		}
 
@@ -32,7 +32,13 @@ namespace StyleMergeCmd
 			var sourceHtml = GetDocument(inputFile);
 			var processedHtml = Inliner.ProcessHtml(sourceHtml);
 
-			System.IO.File.WriteAllText(opts.OutputFile, processedHtml);
+			var outputFile = opts.OutputFile;
+			if (string.IsNullOrEmpty(outputFile)) {
+				var name = System.IO.Path.GetFileNameWithoutExtension(inputFile);
+				var ext = System.IO.Path.GetExtension(inputFile);
+				outputFile = $"{name}.inline{ext}";
+			}
+			System.IO.File.WriteAllText(outputFile, processedHtml);
 		}
 
 		private static string GetDocument(string inputFile)
